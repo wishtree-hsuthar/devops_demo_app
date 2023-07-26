@@ -1,5 +1,6 @@
 import {
     Controller,
+    Delete,
     Get,
     HttpStatus,
     Param,
@@ -15,7 +16,7 @@ import { diskStorage } from 'multer';
 import { v4 as uuidv4 } from 'uuid';
 import { parse } from 'path';
 import { Response } from 'express';
-import { unlink, unlinkSync } from 'fs';
+import { unlinkSync } from 'fs';
 
 const multerConfiguration = {
     storage: diskStorage({
@@ -33,17 +34,12 @@ const multerConfiguration = {
 export class AppController {
     constructor(private readonly appService: AppService) {}
 
-    @Get()
-    getHello(): string {
-        return this.appService.getHello();
-    }
-
     @UseInterceptors(
         FilesInterceptor('files[]', 100, {
             ...multerConfiguration,
         }),
     )
-    @Post('upload')
+    @Post('s3/upload')
     async uploadFile(
         @UploadedFiles(
             new ParseFilePipeBuilder()
@@ -57,7 +53,12 @@ export class AppController {
         return this.appService.uploadFileToS3(files);
     }
 
-    @Get('list/files')
+    @Delete('s3/:s3Id')
+    async deleteFileFromS3(@Param('s3Id') s3Id: string) {
+        return this.appService.deleteFileFromS3(s3Id);
+    }
+
+    @Get('s3/list/files')
     async listBucketFiles() {
         return this.appService.listFiles();
     }
