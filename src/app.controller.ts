@@ -2,8 +2,10 @@ import {
     Controller,
     Get,
     HttpStatus,
+    Param,
     ParseFilePipeBuilder,
     Post,
+    Res,
     UploadedFiles,
     UseInterceptors,
 } from '@nestjs/common';
@@ -12,6 +14,8 @@ import { FilesInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { v4 as uuidv4 } from 'uuid';
 import { parse } from 'path';
+import { Response } from 'express';
+import { unlink, unlinkSync } from 'fs';
 
 const multerConfiguration = {
     storage: diskStorage({
@@ -56,5 +60,16 @@ export class AppController {
     @Get('list/files')
     async listBucketFiles() {
         return this.appService.listFiles();
+    }
+
+    @Get('s3/download/:s3Id')
+    async downloadFileFromS3(
+        @Param('s3Id') s3Id: string,
+        @Res() res: Response,
+    ) {
+        const fileLocation = await this.appService.downloadFileFromS3(s3Id);
+        return res.download(fileLocation, () => {
+            unlinkSync(fileLocation);
+        });
     }
 }

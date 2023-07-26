@@ -13,11 +13,24 @@ import {
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { ConfigService } from '@nestjs/config';
-import { createReadStream, readFileSync } from 'fs';
+import {
+    createReadStream,
+    createWriteStream,
+    readFileSync,
+    unlinkSync,
+} from 'fs';
+import { InjectModel } from '@nestjs/mongoose';
+import { S3File, S3FileDocument } from './schema/s3-files.schema';
+import { Model } from 'mongoose';
+import { v4 as uuidv4 } from 'uuid';
+import * as https from 'https';
 
 @Injectable()
 export class AppService {
-    constructor(private configService: ConfigService) {}
+    constructor(
+        private configService: ConfigService,
+        @InjectModel(S3File.name) private s3FileSchema: Model<S3FileDocument>,
+    ) {}
     getHello(): string {
         return 'Hello World!';
     }
@@ -71,7 +84,7 @@ export class AppService {
         const s3 = this.getS3();
 
         const params = {
-            Key: String(files[0].originalname),
+            Key: `${uuidv4()}_${originalname}`,
             Bucket: this.BucketConf.Bucket,
             Body: filesStreams[0],
         };
@@ -80,9 +93,16 @@ export class AppService {
             const command = new PutObjectCommand({ ...params });
             const s3Response = await s3.send(command);
             console.log('S3 Upload Response', s3Response);
-            const fileUrl = await this.getObjectUrl(files[0].originalname);
+            const fileUrl = await this.getObjectUrl(params.Key);
             console.log('File URL', fileUrl);
+
+            await this.s3FileSchema.create({
+                originalName: originalname,
+                s3Name: params.Key,
+            });
+
             if (s3Response.$metadata.httpStatusCode === 200) {
+                unlinkSync(files[0].path);
                 return {
                     statusCode: 200,
                     message: 'File uploaded successfully',
@@ -102,7 +122,7 @@ export class AppService {
             Bucket: this.BucketConf.Bucket,
             Key,
         });
-        return await getSignedUrl(client, command, { expiresIn: 60 * 100 }); // expires in 20 minutes
+        return await getSignedUrl(client, command, { expiresIn: 60 * 1 }); // expires in 20 minutes
     }
 
     getS3() {
@@ -115,5 +135,27 @@ export class AppService {
             region: this.configService.get('S3_BUCKET_REGION'),
             // endpoint: 's3.amazonaws.com',
         });
+    }
+
+    async downloadFileFromS3(s3Id: string) {
+        const getFileData = await this.s3FileSchema.findOne({
+            s3Name: new RegExp(`^${s3Id}.*$`),
+        });
+        const fileDownloadURL = await this.getObjectUrl(getFileData.s3Name);
+        const filePath = `assets/downloads/${getFileData.originalName}`;
+
+        await new Promise<void>((resolve, reject) => {
+            https.get(fileDownloadURL, (res) => {
+                const writeStream = createWriteStream(filePath);
+                res.pipe(writeStream);
+                writeStream.on('finish', () => {
+                    writeStream.close();
+                    console.log('Download Completed!');
+                    resolve();
+                });
+            });
+        });
+
+        return filePath;
     }
 }
