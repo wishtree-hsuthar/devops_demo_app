@@ -43,7 +43,7 @@ export class AppService implements OnModuleInit {
         this.redisClient = redis.createClient({
             url: this.configService.get('REDIS_HOST'),
             database: 0,
-            ...(this.configService.get('REDIS_AUTH_REQUIRED') === true
+            ...(this.configService.get('REDIS_AUTH_REQUIRED') === 'true'
                 ? { password: this.configService.get('REDIS_AUTH') }
                 : {}),
         });
