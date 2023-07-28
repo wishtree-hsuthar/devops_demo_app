@@ -35,14 +35,17 @@ export class AppService implements OnModuleInit {
 
     redisClient: redis.RedisClientType;
     BucketConf = {
-        Bucket: 'devops-wt-test',
+        Bucket: this.configService.get('BUCKET_NAME'),
     };
     s3Client: S3;
 
     async onModuleInit() {
         this.redisClient = redis.createClient({
+            url: this.configService.get('REDIS_HOST'),
             database: 0,
-            // password: 'Redis@123',
+            ...(this.configService.get('REDIS_AUTH_REQUIRED') === true
+                ? { password: this.configService.get('REDIS_AUTH') }
+                : {}),
         });
         await this.redisClient.connect();
         this.s3Client = this.getS3();
