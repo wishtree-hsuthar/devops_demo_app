@@ -42,7 +42,7 @@ export class AppService implements OnModuleInit {
     async onModuleInit() {
         this.redisClient = redis.createClient({
             database: 0,
-            password: 'Redis@123',
+            // password: 'Redis@123',
         });
         await this.redisClient.connect();
         this.s3Client = this.getS3();
